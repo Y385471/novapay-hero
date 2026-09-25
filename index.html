@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nova Pay — animated hero (demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060b1f}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:#eef2ff;font-family:"Plus Jakarta Sans",system-ui,sans-serif}
+.hero{position:relative;min-height:100vh;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:center;overflow:hidden;
+ background:radial-gradient(900px 600px at 70% 50%,#10205a 0%,#081033 55%,#060b1f 100%)}
+.copy{padding:0 0 0 clamp(20px,6vw,96px);z-index:2}
+.eyebrow{font-size:12px;letter-spacing:.24em;color:#8fb1ff;font-weight:600}
+h1{font-size:clamp(38px,4.6vw,70px);line-height:1.04;letter-spacing:-.025em;margin:18px 0 18px;font-weight:700}
+h1 span{background:linear-gradient(90deg,#9ab8ff,#6ee7d8);-webkit-background-clip:text;background-clip:text;color:transparent}
+p{color:#c9d3ee;font-size:clamp(16px,1.4vw,20px);line-height:1.55;max-width:32ch;margin:0 0 30px}
+.btns{display:flex;gap:12px;flex-wrap:wrap}.b{padding:14px 24px;border-radius:12px;font-weight:600;font-size:15px;text-decoration:none}
+.b1{background:#fff;color:#0a1440}.b2{border:1px solid #2c3b73;color:#fff}
+.vis{position:relative;aspect-ratio:1/1;width:100%;max-height:100vh;}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.note{position:fixed;left:14px;bottom:10px;font-size:11px;color:#5f6d9c}
+@media (max-width:900px){.hero{grid-template-columns:1fr;padding-top:48px}.copy{padding:0 20px}}
+</style></head><body>
+<section class="hero">
+ <div class="copy">
+  <div class="eyebrow">NOVA PAY · GLOBAL PAYMENTS</div>
+  <h1>Money that moves at the <span>speed of trust.</span></h1>
+  <p>Send, receive and settle in 40+ currencies — every payment checked in real time.</p>
+  <div class="btns"><a class="b b1" href="#">Get started →</a><a class="b b2" href="#">See pricing</a></div>
+ </div>
+ <div class="vis"><canvas id="cv" aria-label="Animated globe with live payment cards" role="img"></canvas></div>
+</section>
+<div class="note">Demo brand · original canvas animation by Yousef Emad · no libraries</div>
+<script type="module">
+const T = 12, S = 1000;                       // loop period (s), scene size (square, px)
+const TAU = Math.PI * 2, cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const ease = p => 1 - Math.pow(1 - cl(p), 3), easeIO = p => 0.5 - 0.5 * Math.cos(Math.PI * cl(p));
+const back = p => { p = cl(p); const c = 1.7; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); };
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+await document.fonts.load('600 20px "Plus Jakarta Sans"'); await document.fonts.load('700 20px "Plus Jakarta Sans"');
+
+// ---- globe: lat/lon dot grid with procedural continents ----
+const G = { x: 520, y: 520, r: 330 };
+const land = (la, lo) => { const v = Math.sin(lo * 2.1 + 0.6) * Math.cos(la * 2.7) + 0.55 * Math.sin(lo * 4.3 + la * 3.1 + 1.2) + 0.35 * Math.cos(lo * 7.7 - la * 5.3); return v > 0.18; };
+const dots = [];
+for (let la = -80; la <= 80; la += 3.2) { const r = Math.cos(la * Math.PI / 180), n = Math.max(6, Math.round(112 * r));
+  for (let k = 0; k < n; k++) { const lo = k / n * TAU, L = la * Math.PI / 180; dots.push({ la: L, lo, land: land(L, lo), ph: (k * 7.31 + la) % TAU }); } }
+const CITIES = [[0.62, 0.3], [0.9, 1.9], [0.25, 2.8], [-0.4, 0.9], [0.7, 4.2], [0.1, 5.3], [-0.55, 3.6], [0.45, 1.2]];
+const ROUTES = [[0, 1, 0.4], [1, 2, 2.1], [3, 7, 3.6], [7, 4, 5.2], [2, 5, 6.6], [6, 0, 8.0]];
+const tilt = 0.38;
+function proj(la, lo, rot) { const l = lo + rot, x = Math.cos(la) * Math.sin(l), y0 = Math.sin(la), z0 = Math.cos(la) * Math.cos(l);
+  const y = y0 * Math.cos(tilt) - z0 * Math.sin(tilt), z = y0 * Math.sin(tilt) + z0 * Math.cos(tilt); return { x: G.x + G.r * x, y: G.y - G.r * y, z }; }
+function slerp(a, b, s) { // great-circle interpolation of two lat/lon points, lifted above the surface
+  const v = ([la, lo]) => [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)];
+  const A = v(a), B = v(b), d = Math.acos(cl(A[0] * B[0] + A[1] * B[1] + A[2] * B[2], -1, 1)), sd = Math.sin(d) || 1;
+  const k1 = Math.sin((1 - s) * d) / sd, k2 = Math.sin(s * d) / sd, P = A.map((c, i) => k1 * c + k2 * B[i]);
+  return { la: Math.asin(cl(P[2], -1, 1)), lo: Math.atan2(P[1], P[0]), lift: 1 + 0.16 * Math.sin(Math.PI * s) }; }
+
+// ---- cards ----
+const CARDS = [
+  { x: 70, y: 150, w: 330, h: 104, v: 1.2, title: 'Payment received', sub: '$2,480.00 · Lisbon → Dubai', ph: 0.0 },
+  { x: 600, y: 90, w: 300, h: 96, v: 3.0, title: 'Fraud check passed', sub: 'Risk score 0.02 · 38 ms', ph: 1.9 },
+  { x: 610, y: 770, w: 300, h: 96, v: 4.6, title: 'Settled instantly', sub: 'EUR → AED · 1.2 s', ph: 3.6 },
+];
+const LIST = { x: 60, y: 640, w: 300, h: 216, v: 6.0, items: ['Identity (KYC)', 'Sanctions (AML)', 'Card network', 'FX rate locked', 'Settlement'] };
+const CHART = { x: 700, y: 330, w: 250, h: 150, v: 7.6 };
+const RESET = 11.1;
+function glass(x, y, w, h, a = 1) {
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.shadowColor = 'rgba(0,4,24,.55)'; ctx.shadowBlur = 28; ctx.shadowOffsetY = 10;
+  const g = ctx.createLinearGradient(x, y, x, y + h); g.addColorStop(0, 'rgba(34,48,104,.78)'); g.addColorStop(1, 'rgba(14,22,58,.84)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x, y, w, h, 18); ctx.fill(); ctx.shadowColor = 'transparent';
+  const bd = ctx.createLinearGradient(x, y, x + w, y + h); bd.addColorStop(0, 'rgba(160,190,255,.55)'); bd.addColorStop(1, 'rgba(160,190,255,.08)');
+  ctx.strokeStyle = bd; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore(); }
+function tick(x, y, r, since, reset) {
+  if (since < 0 || reset >= 1) { ctx.save(); ctx.globalAlpha = 0.8 * (reset >= 1 ? 1 : 1); ctx.strokeStyle = 'rgba(160,185,240,.8)'; ctx.lineWidth = 2;
+    const a = TAU * clock * 1.4; ctx.beginPath(); ctx.arc(x, y, r * 0.72, a, a + 4.3); ctx.stroke(); ctx.restore(); return; }
+  const s = back(since / 0.4), vis = 1 - reset;
+  ctx.save(); ctx.globalAlpha = vis; ctx.fillStyle = '#2fd48f'; ctx.shadowColor = 'rgba(47,212,143,.6)'; ctx.shadowBlur = 14 * cl(1 - since);
+  ctx.beginPath(); ctx.arc(x, y, r * s, 0, TAU); ctx.fill(); ctx.shadowColor = 'transparent';
+  const d = cl((since - 0.2) / 0.3); if (d > 0) { const P = [[x - r * .42, y + r * .02], [x - r * .1, y + r * .34], [x + r * .45, y - r * .32]];
+    const l1 = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]), l2 = Math.hypot(P[2][0] - P[1][0], P[2][1] - P[1][1]), L = (l1 + l2) * d;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = r * 0.22; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(...P[0]);
+    if (L <= l1) ctx.lineTo(P[0][0] + (P[1][0] - P[0][0]) * L / l1, P[0][1] + (P[1][1] - P[0][1]) * L / l1);
+    else { ctx.lineTo(...P[1]); const q = (L - l1) / l2; ctx.lineTo(P[1][0] + (P[2][0] - P[1][0]) * q, P[1][1] + (P[2][1] - P[1][1]) * q); } ctx.stroke(); }
+  ctx.restore(); }
+let clock = 0;
+export function render(t, abs = t) {
+  clock = t; const lt = ((t % T) + T) % T, reset = cl((lt - RESET) / 0.7), rot = abs * 0.11;
+  ctx.setTransform(cv.width / S, 0, 0, cv.height / S, 0, 0); ctx.clearRect(0, 0, S, S);
+  // atmosphere
+  const at = ctx.createRadialGradient(G.x, G.y, G.r * 0.7, G.x, G.y, G.r * 1.35); at.addColorStop(0, 'rgba(60,110,255,.22)'); at.addColorStop(1, 'rgba(60,110,255,0)');
+  ctx.fillStyle = at; ctx.beginPath(); ctx.arc(G.x, G.y, G.r * 1.35, 0, TAU); ctx.fill();
+  const body = ctx.createRadialGradient(G.x - 90, G.y - 110, 30, G.x, G.y, G.r); body.addColorStop(0, '#1a2f7a'); body.addColorStop(1, '#0a1340');
+  ctx.fillStyle = body; ctx.beginPath(); ctx.arc(G.x, G.y, G.r, 0, TAU); ctx.fill();
+  // dots
+  for (const d of dots) { const p = proj(d.la, d.lo, rot); if (p.z < 0) continue;
+    const tw = 0.75 + 0.25 * Math.sin(TAU * abs / 3 + d.ph);
+    ctx.fillStyle = d.land ? `rgba(165,205,255,${(0.35 + 0.65 * p.z) * tw})` : `rgba(90,120,210,${0.14 * p.z})`;
+    const s = d.land ? 2.8 : 1.4; ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s); }
+  // rim light
+  const rim = ctx.createRadialGradient(G.x, G.y, G.r * 0.86, G.x, G.y, G.r * 1.02); rim.addColorStop(0, 'rgba(120,170,255,0)'); rim.addColorStop(1, 'rgba(140,190,255,.35)');
+  ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(G.x, G.y, G.r * 1.02, 0, TAU); ctx.fill();
+  // routes
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const [a, b, t0] of ROUTES) { const u = (lt - t0) / 1.6; if (u < -0.1 || u > 2) continue;
+    const A = CITIES[a], B = CITIES[b], alpha = cl((u + 0.1) / 0.3) * (1 - cl((u - 1.2) / 0.7));
+    ctx.beginPath(); let started = false;
+    for (let i = 0; i <= 40; i++) { const q = slerp(A, B, i / 40), p = proj(q.la, q.lo, rot), px = G.x + (p.x - G.x) * q.lift, py = G.y + (p.y - G.y) * q.lift;
+      if (p.z < -0.05) { started = false; continue; } started ? ctx.lineTo(px, py) : ctx.moveTo(px, py); started = true; }
+    ctx.strokeStyle = `rgba(110,231,216,${0.55 * alpha})`; ctx.lineWidth = 1.6; ctx.stroke();
+    if (u >= 0 && u <= 1) for (let k = 0; k < 14; k++) { const s = ease(u) - k * 0.014; if (s < 0) break; const q = slerp(A, B, s), p = proj(q.la, q.lo, rot); if (p.z < 0) break;
+      ctx.fillStyle = `rgba(200,255,245,${(1 - k / 14) * 0.9})`; ctx.beginPath(); ctx.arc(G.x + (p.x - G.x) * q.lift, G.y + (p.y - G.y) * q.lift, k ? 2.6 - k * 0.12 : 4.2, 0, TAU); ctx.fill(); }
+    for (const c of [A, B]) { const p = proj(c[0], c[1], rot); if (p.z < 0) continue; const pulse = 0.5 + 0.5 * Math.sin(TAU * abs / 2);
+      ctx.fillStyle = `rgba(110,231,216,${0.8 * alpha})`; ctx.beginPath(); ctx.arc(p.x, p.y, 3.2, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(110,231,216,${0.5 * alpha * (1 - pulse)})`; ctx.beginPath(); ctx.arc(p.x, p.y, 4 + 12 * pulse, 0, TAU); ctx.stroke(); } }
+  ctx.restore();
+  // orbit ring + travelling light
+  ctx.save(); ctx.translate(G.x, G.y); ctx.rotate(-0.28);
+  ctx.strokeStyle = 'rgba(140,180,255,.22)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(0, 0, G.r * 1.32, G.r * 0.34, 0, 0, TAU); ctx.stroke();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 30; k++) { const a = TAU * lt / T - k * 0.012, x = G.r * 1.32 * Math.cos(a), y = G.r * 0.34 * Math.sin(a), front = y > -8 ? 1 : 0.3;
+    ctx.fillStyle = `rgba(210,230,255,${(1 - k / 30) * front})`; ctx.beginPath(); ctx.arc(x, y, k ? 2.8 - k * 0.07 : 5, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  // cards
+  ctx.textBaseline = 'middle';
+  for (const c of CARDS) { const fy = 6 * Math.sin(TAU * lt / T + c.ph), on = cl((lt - c.v) / 0.5) * (1 - reset), app = ease((lt - c.v + 0.6) / 0.6);
+    const a = reset > 0 ? 1 - reset * 0.4 : 0.55 + 0.45 * app; ctx.save(); ctx.translate(0, fy + (1 - app) * 10);
+    glass(c.x, c.y, c.w, c.h, a); ctx.globalAlpha = a;
+    tick(c.x + 44, c.y + c.h / 2, 17, lt - c.v, reset);
+    ctx.fillStyle = '#f2f5ff'; ctx.font = '600 21px "Plus Jakarta Sans"'; ctx.fillText(c.title, c.x + 76, c.y + c.h / 2 - 13);
+    ctx.fillStyle = 'rgba(190,205,240,.85)'; ctx.font = '500 15px "Plus Jakarta Sans"'; ctx.fillText(c.sub, c.x + 76, c.y + c.h / 2 + 15);
+    const since = lt - c.v; if (since > 0 && lt < RESET) { const f = Math.exp(-since / 0.5); ctx.strokeStyle = `rgba(47,212,143,${0.9 * f})`; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.roundRect(c.x, c.y, c.w, c.h, 18); ctx.stroke(); }
+    ctx.restore(); }
+  // checklist
+  { const L = LIST, fy = 5 * Math.sin(TAU * lt / T + 2.4); ctx.save(); ctx.translate(0, fy); glass(L.x, L.y, L.w, L.h);
+    ctx.fillStyle = 'rgba(190,205,240,.8)'; ctx.font = '600 13px "Plus Jakarta Sans"'; ctx.fillText('COMPLIANCE CHECKS', L.x + 24, L.y + 30);
+    L.items.forEach((it, i) => { const y = L.y + 66 + i * 32, v = L.v + i * 0.38, on = cl((lt - v) / 0.3) * (1 - reset);
+      ctx.fillStyle = `rgba(242,245,255,${0.45 + 0.55 * on})`; ctx.font = '500 16px "Plus Jakarta Sans"'; ctx.fillText(it, L.x + 24, y); tick(L.x + L.w - 34, y, 10, lt - v, reset); });
+    ctx.restore(); }
+  // chart
+  { const C = CHART, fy = 5 * Math.sin(TAU * lt / T + 4.4), p = ease((lt - C.v) / 1.4) * (1 - reset); ctx.save(); ctx.translate(0, fy); glass(C.x, C.y, C.w, C.h);
+    ctx.fillStyle = 'rgba(190,205,240,.8)'; ctx.font = '600 13px "Plus Jakarta Sans"'; ctx.fillText('VOLUME TODAY', C.x + 20, C.y + 26);
+    ctx.fillStyle = '#f2f5ff'; ctx.font = '700 24px "Plus Jakarta Sans"'; ctx.fillText('$' + Math.round(1.2 + 3.62 * p * 100) / 100 + 'M', C.x + 20, C.y + 56);
+    const pts = [0.2, 0.28, 0.24, 0.4, 0.36, 0.55, 0.5, 0.68, 0.74, 0.9], x0 = C.x + 20, x1 = C.x + C.w - 20, yb = C.y + C.h - 18, hh = 60;
+    ctx.beginPath(); const n = Math.max(1, Math.floor(p * (pts.length - 1) * 100) / 100);
+    for (let i = 0; i <= n * 1; i += 0.05) { const k = Math.min(Math.floor(i), pts.length - 2), f = i - k, v = pts[k] + (pts[k + 1] - pts[k]) * f; const x = x0 + (x1 - x0) * i / (pts.length - 1), y = yb - hh * v; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.strokeStyle = '#6ee7d8'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore(); }
+}
+window.render = render;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function size() { const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
+size(); addEventListener('resize', size);
+if (new URLSearchParams(location.search).has('t')) { render(+new URLSearchParams(location.search).get('t')); }
+else if (reduce) render(10);
+else { const t0 = performance.now(); let vis = true; new IntersectionObserver(([e]) => vis = e.isIntersecting).observe(cv);
+  const loop = now => { if (vis && !document.hidden) render((now - t0) / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script></body></html>
