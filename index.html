@@ -140,7 +140,22 @@ export function render(t, abs = t) {
   // chart
   { const C = CHART, fy = 5 * Math.sin(TAU * lt / T + 4.4), p = ease((lt - C.v) / 1.4) * (1 - reset); ctx.save(); ctx.translate(0, fy); glass(C.x, C.y, C.w, C.h);
     ctx.fillStyle = 'rgba(190,205,240,.8)'; ctx.font = '600 13px "Plus Jakarta Sans"'; ctx.fillText('VOLUME TODAY', C.x + 20, C.y + 26);
-    ctx.fillStyle = '#f2f5ff'; ctx.font = '700 24px "Plus Jakarta Sans"'; ctx.fillText('$' + Math.round(1.2 + 3.62 * p * 100) / 100 + 'M', C.x + 20, C.y + 56);
+    ctx.fillStyle = '#f2f5ff'; ctx.font = '700 24px "Plus Jakarta Sans"'; ctx.fillText('
+    const pts = [0.2, 0.28, 0.24, 0.4, 0.36, 0.55, 0.5, 0.68, 0.74, 0.9], x0 = C.x + 20, x1 = C.x + C.w - 20, yb = C.y + C.h - 18, hh = 60;
+    ctx.beginPath(); const n = Math.max(1, Math.floor(p * (pts.length - 1) * 100) / 100);
+    for (let i = 0; i <= n * 1; i += 0.05) { const k = Math.min(Math.floor(i), pts.length - 2), f = i - k, v = pts[k] + (pts[k + 1] - pts[k]) * f; const x = x0 + (x1 - x0) * i / (pts.length - 1), y = yb - hh * v; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.strokeStyle = '#6ee7d8'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore(); }
+}
+window.render = render;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function size() { const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2); cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
+size(); addEventListener('resize', size);
+if (new URLSearchParams(location.search).has('t')) { render(+new URLSearchParams(location.search).get('t')); }
+else if (reduce) render(10);
+else { const t0 = performance.now(); let vis = true; new IntersectionObserver(([e]) => vis = e.isIntersecting).observe(cv);
+  const loop = now => { if (vis && !document.hidden) render((now - t0) / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script></body></html>
+ + (1.2 + 3.62 * p).toFixed(2) + 'M', C.x + 20, C.y + 56);
     const pts = [0.2, 0.28, 0.24, 0.4, 0.36, 0.55, 0.5, 0.68, 0.74, 0.9], x0 = C.x + 20, x1 = C.x + C.w - 20, yb = C.y + C.h - 18, hh = 60;
     ctx.beginPath(); const n = Math.max(1, Math.floor(p * (pts.length - 1) * 100) / 100);
     for (let i = 0; i <= n * 1; i += 0.05) { const k = Math.min(Math.floor(i), pts.length - 2), f = i - k, v = pts[k] + (pts[k + 1] - pts[k]) * f; const x = x0 + (x1 - x0) * i / (pts.length - 1), y = yb - hh * v; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
